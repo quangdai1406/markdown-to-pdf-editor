@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Presswork PDF</title>
+<base id="basetag" href="">
+<style>
+:root{--bg:#efece4;--surface:#fff;--surface2:#faf9f4;--ink:#201c16;--soft:#58513f;--faint:#8a8371;
+ --line:#ddd6c4;--line2:#c7bea7;--accent:#23425e;--accent2:#14293c;--accent-soft:#e3eaf0;
+ --doc-accent:#23425e;--doc-code:#f1efe6;--doc-line:#ddd6c4;--danger:#a13d2e}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink);overflow:hidden}
+.app{display:flex;flex-direction:column;height:100vh}
+.mast{display:flex;align-items:baseline;gap:12px;padding:14px 24px;border-bottom:1px solid var(--line)}
+.mast h1{font:600 1.5rem Palatino,"Palatino Linotype",Georgia,serif;margin:0}
+.mast span{font:italic .9rem Georgia,serif;color:var(--soft)}
+.work{flex:1;display:grid;grid-template-columns:320px 1fr;min-height:0}
+.ctl{background:var(--surface2);border-right:1px solid var(--line);padding:18px 20px;display:flex;flex-direction:column;gap:18px;overflow:auto}
+.lbl{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin-bottom:8px}
+button{font:inherit;cursor:pointer}
+.btn{width:100%;padding:11px;border:1px solid var(--line2);background:var(--surface);border-radius:3px;font-weight:600;font-size:.85rem}
+.btn:hover{border-color:var(--accent)}
+.primary{background:var(--accent);color:#fff;border-color:var(--accent)}.primary:hover{background:var(--accent2)}
+.fname{font-size:.78rem;color:var(--soft);margin-top:8px;word-break:break-all}
+.seg{display:flex;gap:6px}
+.seg button{flex:1;padding:9px;border:1px solid var(--line2);background:var(--surface);border-radius:3px;font-size:.82rem;font-weight:500}
+.seg button[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sw{display:flex;gap:8px}
+.sw button{width:28px;height:28px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line2);padding:0}
+.sw button[aria-pressed=true]{box-shadow:0 0 0 2px var(--ink)}
+input[type=number]{width:70px;padding:6px;border:1px solid var(--line2);border-radius:3px;font:inherit}
+.dock{margin-top:auto;display:flex;flex-direction:column;gap:8px;padding-top:8px;border-top:1px solid var(--line)}
+.status{font-size:.78rem;line-height:1.45;padding:8px 10px;border-left:3px solid var(--accent);background:var(--accent-soft);color:var(--accent2);display:none}
+.status.warn{border-color:var(--danger);color:var(--danger);background:#f6e8e4}
+.status a{color:inherit;font-weight:600;cursor:pointer;text-decoration:underline}
+.small{font-size:.74rem;color:var(--faint);line-height:1.4}
+.prev{overflow:auto;padding:22px;display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+.readout{align-self:center;position:sticky;left:0}
+.readout{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.stage{position:relative;margin:0 auto;flex:0 0 auto}
+.paper{--pw:210mm;--ph:297mm;--m:18mm;width:var(--pw);min-height:var(--ph);padding:var(--m);background:#fff;
+ box-shadow:0 24px 60px -24px rgba(32,28,22,.35);transform-origin:top left;position:absolute;left:0;top:0;
+ background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(var(--ph) - 1px),#d9d3c2 calc(var(--ph) - 1px),#d9d3c2 var(--ph))}
+.zbar{position:fixed;right:26px;bottom:18px;display:flex;gap:4px;background:var(--surface);border:1px solid var(--line2);border-radius:4px;padding:4px;box-shadow:0 6px 20px -8px rgba(0,0,0,.35);z-index:5}
+.zbar button{min-width:34px;padding:5px 9px;border:1px solid transparent;background:transparent;border-radius:3px;font-weight:600;font-size:.85rem}
+.zbar button:hover{background:var(--accent-soft)}
+.empty{color:var(--faint);font-style:italic;text-align:center;padding:30mm 0}
+/* document typography (same as the PDF) */
+.doc{font-family:"Source Serif 4",Georgia,"Times New Roman",serif;font-size:11pt;line-height:1.65;color:#232016}
+.doc h1,.doc h2,.doc h3,.doc h4,.doc h5,.doc h6{font-family:Fraunces,"Iowan Old Style","Palatino Linotype",Palatino,serif;font-weight:600;color:var(--doc-accent);line-height:1.25}
+.doc h1{font-size:22pt;margin:0 0 .15em;padding-bottom:.3em;border-bottom:2px solid var(--doc-accent)}
+.doc h2{font-size:15pt;margin:1.7em 0 .55em}.doc h3{font-size:12.5pt;margin:1.5em 0 .45em}.doc h4,.doc h5,.doc h6{font-size:11pt;margin:1.3em 0 .4em}
+.doc p{margin:.9em 0}.doc a{color:var(--doc-accent)}
+.doc ul,.doc ol{margin:.9em 0;padding-left:1.4em}.doc li{margin:.35em 0}.doc li::marker{color:var(--doc-accent)}
+.doc blockquote{margin:1.2em 0;padding:.2em 0 .2em 1.1em;border-left:3px solid var(--doc-accent);color:#58513f;font-style:italic}
+.doc code{font-family:"JetBrains Mono",Consolas,monospace;font-size:.85em;background:var(--doc-code);padding:.15em .4em;border-radius:3px}
+.doc pre{background:var(--doc-code);border:1px solid var(--doc-line);border-radius:4px;padding:14px 16px;margin:1.1em 0;white-space:pre-wrap;word-wrap:break-word}
+.doc pre code{background:none;padding:0;font-size:.82em;line-height:1.55}
+.doc hr{border:none;border-top:1px solid var(--doc-line);margin:2.2em 0}
+.doc img{max-width:100%;border-radius:3px}
+.doc table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92em}
+.doc th,.doc td{border:1px solid var(--doc-line);padding:7px 10px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+.doc th{background:var(--doc-code);font-family:"Segoe UI",Arial,sans-serif;font-weight:600;font-size:.85em;text-transform:uppercase;letter-spacing:.03em}
+</style></head>
+<body><div class="app">
+<div class="mast"><h1>Presswork PDF</h1><span>Markdown, set for print</span></div>
+<div class="work">
+ <section class="ctl">
+  <div><div class="lbl">Markdown file</div>
+   <button class="btn" id="open">Open .md file…</button>
+   <div class="fname" id="fname">No file open</div>
+   <button class="btn" id="reload" style="margin-top:8px;display:none">Reload from disk</button></div>
+  <div><div class="lbl">Paper size</div>
+   <div class="seg" id="size"><button data-v="A4" aria-pressed="true">A4</button><button data-v="A3" aria-pressed="false">A3</button></div></div>
+  <div><div class="lbl">Orientation</div>
+   <div class="seg" id="orient"><button data-v="Portrait" aria-pressed="true">Portrait</button><button data-v="Landscape" aria-pressed="false">Landscape</button></div></div>
+  <div><div class="lbl">Accent colour</div>
+   <div class="sw" id="sw">
+    <button style="background:#23425e" data-a="Ink blue" data-c="#23425e" data-b="#f1efe6" data-l="#ddd6c4" aria-pressed="true" title="Ink blue"></button>
+    <button style="background:#5c4a2e" data-a="Umber" data-c="#5c4a2e" data-b="#f2ede2" data-l="#ddd3bd" aria-pressed="false" title="Umber"></button>
+    <button style="background:#3f5b42" data-a="Forest" data-c="#3f5b42" data-b="#eef2ea" data-l="#d5ddce" aria-pressed="false" title="Forest"></button>
+    <button style="background:#5b3a52" data-a="Plum" data-c="#5b3a52" data-b="#f2eaf0" data-l="#ddd0da" aria-pressed="false" title="Plum"></button>
+    <button style="background:#201c16" data-a="Ink black" data-c="#201c16" data-b="#f1efe6" data-l="#ddd6c4" aria-pressed="false" title="Ink black"></button>
+   </div></div>
+  <div><div class="lbl">Margin (mm)</div><input type="number" id="margin" value="18" min="5" max="40"></div>
+  <div class="dock">
+   <button class="btn primary" id="export">Export PDF…</button>
+   <button class="btn" id="exportall">Export all 4 (A4 + A3, both orientations)</button>
+   <div class="status" id="status"></div>
+   <button class="btn" id="assoc">Open .md files with this app</button>
+   <div class="small">Double-click any .md file to open it here once this is set.</div>
+  </div>
+ </section>
+ <section class="prev" id="prev">
+  <div class="readout" id="readout">A4 portrait</div>
+  <div class="zbar"><button id="zout" title="Zoom out (Ctrl + scroll down)">−</button><button id="zfit" title="Fit to window (Ctrl+0)">Fit</button><button id="z100" title="100% (Ctrl+1)">100%</button><button id="zin" title="Zoom in (Ctrl + scroll up)">+</button></div>
+  <div class="stage" id="stage"><article class="paper" id="paper"><div class="doc" id="doc"><div class="empty">Open a Markdown file to see it here, formatted.</div></div></article></div>
+ </section>
+</div></div>
+<script src="marked.umd.js"></script>
+<script>
+const DIM={A4:[210,297],A3:[297,420]};
+let st={size:'A4',orient:'Portrait',accent:'Ink blue',path:null,text:'',dir:''};
+const $=id=>document.getElementById(id);
+const api=()=>window.pywebview.api;
+
+let zoom=null;            // null = fit to window width; number = manual zoom
+let curK=1;
+function fitK(){return Math.min(1,($('prev').clientWidth-44)/$('paper').offsetWidth)}
+function fit(){
+  const p=$('paper'),stage=$('stage');
+  const k=zoom===null?fitK():zoom; curK=k;
+  p.style.transform='scale('+k+')';
+  stage.style.width=(p.offsetWidth*k)+'px';
+  stage.style.height=(p.offsetHeight*k)+'px';
+  $('readout').textContent=st.size+' '+st.orient.toLowerCase()+' · '+Math.max(1,Math.ceil(p.offsetHeight/pxPage()))+' page(s) · '+Math.round(k*100)+'%'+(zoom===null?' (fit)':'');
+}
+function setZoom(z){
+  const prev=$('prev'), old=curK;
+  if(z===null){zoom=null}else{zoom=Math.min(4,Math.max(0.2,z))}
+  fit();
+  const r=curK/old; prev.scrollTop*=r; prev.scrollLeft*=r;
+}
+function zoomBy(f){setZoom(curK*f)}
+$('prev').addEventListener('wheel',e=>{
+  if(!e.ctrlKey)return;
+  e.preventDefault();
+  zoomBy(e.deltaY<0?1.1:1/1.1);
+},{passive:false});
+window.addEventListener('keydown',e=>{
+  if(!e.ctrlKey)return;
+  if(e.key==='+'||e.key==='='){e.preventDefault();zoomBy(1.1)}
+  else if(e.key==='-'||e.key==='_'){e.preventDefault();zoomBy(1/1.1)}
+  else if(e.key==='0'){e.preventDefault();setZoom(null)}
+  else if(e.key==='1'){e.preventDefault();setZoom(1)}
+});
+function pxPage(){const d=DIM[st.size];const h=st.orient==='Landscape'?d[0]:d[1];return h*96/25.4}
+function applyPaper(){
+  let [w,h]=DIM[st.size]; if(st.orient==='Landscape')[w,h]=[h,w];
+  const p=$('paper');p.style.setProperty('--pw',w+'mm');p.style.setProperty('--ph',h+'mm');
+  p.style.setProperty('--m',$('margin').value+'mm');
+  fit();
+}
+function render(){
+  const d=$('doc');
+  if(!st.text.trim()){d.innerHTML='<div class="empty">Open a Markdown file to see it here, formatted.</div>';fit();return}
+  $('basetag').href=st.dir;
+  d.innerHTML=marked.parse(st.text);
+  setTimeout(fit,50);
+}
+function setStatus(msg,warn,html){const s=$('status');s.style.display=msg?'block':'none';s.className='status'+(warn?' warn':'');
+  if(html)s.innerHTML=msg;else s.textContent=msg}
+function loadInfo(r){
+  if(!r||!r.ok){if(r&&r.error)setStatus(r.error,true);return}
+  st.path=r.path;st.text=r.text;st.dir=r.dir;
+  $('fname').textContent=r.path;$('reload').style.display='block';
+  setStatus('');render();
+}
+function seg(id,key){$(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  st[key]=b.dataset.v;[...$(id).children].forEach(x=>x.setAttribute('aria-pressed',x===b));applyPaper()})}
+seg('size','size');seg('orient','orient');
+$('sw').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  [...$('sw').children].forEach(x=>x.setAttribute('aria-pressed',x===b));st.accent=b.dataset.a;
+  const r=document.documentElement.style;r.setProperty('--doc-accent',b.dataset.c);r.setProperty('--doc-code',b.dataset.b);r.setProperty('--doc-line',b.dataset.l)});
+$('margin').addEventListener('input',applyPaper);
+$('open').onclick=async()=>loadInfo(await api().pick_file());
+$('reload').onclick=async()=>loadInfo(await api().read_file(st.path));
+function opts(){return {size:st.size,orient:st.orient,accent:st.accent,margin:parseInt($('margin').value)||18}}
+function done(r){
+  if(!r.ok){setStatus(r.error||'Export failed',true);return}
+  setStatus(r.files.length+' PDF file(s) saved. <a id="of">Open folder</a>',false,true);
+  $('of').onclick=()=>api().show_in_folder(r.files[0]);
+}
+async function run(fn){
+  if(!st.path){setStatus('Open a Markdown file first.',true);return}
+  setStatus('Creating PDF… please wait');$('export').disabled=$('exportall').disabled=true;
+  try{done(await fn())}catch(e){setStatus(String(e),true)}
+  $('export').disabled=$('exportall').disabled=false;
+}
+$('export').onclick=()=>run(()=>api().export_pdf(st.path,opts(),false));
+$('exportall').onclick=()=>run(()=>api().export_pdf(st.path,opts(),true));
+$('assoc').onclick=async()=>{const r=await api().associate();setStatus(r.msg,!r.ok)};
+window.addEventListener('resize',fit);
+$('zin').onclick=()=>zoomBy(1.1);$('zout').onclick=()=>zoomBy(1/1.1);$('zfit').onclick=()=>setZoom(null);$('z100').onclick=()=>setZoom(1);
+let booted=false;
+async function boot(){
+  if(booted||!window.pywebview||!window.pywebview.api||typeof window.pywebview.api.initial_file!=='function')return;
+  booted=true;
+  try{const r=await api().initial_file();if(r)loadInfo(r)}catch(e){setStatus('Startup error: '+e,true)}
+}
+window.addEventListener('pywebviewready',boot);
+setTimeout(()=>{if(!booted)setStatus('Python bridge not ready (api: '+(window.pywebview?Object.keys(window.pywebview.api||{}).join(','):'none')+')',true)},4000);
+const _t=setInterval(()=>{boot();if(booted)clearInterval(_t)},200);
+applyPaper();
+</script></body></html>
