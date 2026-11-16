@@ -42,6 +42,8 @@ input[type=number]{width:70px;padding:6px;border:1px solid var(--line2);border-r
 .zbar{position:fixed;right:26px;bottom:18px;display:flex;gap:4px;background:var(--surface);border:1px solid var(--line2);border-radius:4px;padding:4px;box-shadow:0 6px 20px -8px rgba(0,0,0,.35);z-index:5}
 .zbar button{min-width:34px;padding:5px 9px;border:1px solid transparent;background:transparent;border-radius:3px;font-weight:600;font-size:.85rem}
 .zbar button:hover{background:var(--accent-soft)}
+.ctl,.zbar,.mast,.readout{user-select:none;-webkit-user-select:none}
+.doc{user-select:text;-webkit-user-select:text;cursor:text}
 .empty{color:var(--faint);font-style:italic;text-align:center;padding:30mm 0}
 /* document typography (same as the PDF) */
 .doc{font-family:"Source Serif 4",Georgia,"Times New Roman",serif;font-size:11pt;line-height:1.65;color:#232016}

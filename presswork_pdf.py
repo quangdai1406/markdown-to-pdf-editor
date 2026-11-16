@@ -255,7 +255,7 @@ class Api:
 def main():
     initial = [os.path.abspath(a) for a in sys.argv[1:] if not a.startswith("--")]
     api = Api(initial)
-    api._window = webview.create_window(APP, resource("ui.html"), js_api=api, width=1280, height=860,
+    api._window = webview.create_window(APP, resource("ui.html"), js_api=api, width=1280, height=860, text_select=True,
                                        min_size=(900, 600))
     webview.start()
 
