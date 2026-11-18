@@ -4,6 +4,8 @@ A free Windows app that opens Markdown (`.md`) files, shows them with full forma
 real PDF files in **A4 or A3**, **portrait or landscape**.
 
 - Formatted reading view on a paper-sized page, with page breaks
+- **Edit side by side:** Split view shows the Markdown source next to the formatted page and updates as you type. Ctrl+S saves, and you are asked before losing unsaved changes. Export PDF uses what is on screen, even if not saved.
+- Select and copy text with the mouse in the page or the editor
 - Zoom: **Ctrl + mouse wheel**, Ctrl +/-, Ctrl+0 (fit), Ctrl+1 (100%)
 - Export the current choice, or all four size/orientation combinations at once
 - Accent colour and margin options

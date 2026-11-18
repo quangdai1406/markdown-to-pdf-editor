@@ -164,13 +164,22 @@ class Api:
         self._initial = initial
         self._window = None
         self._browser = find_browser()
+        self._dirty = False
 
     def _read(self, path):
         path = os.path.abspath(path)
-        with open(path, encoding="utf-8-sig", errors="replace") as f:
-            text = f.read()
+        enc = "utf-8"
+        try:
+            with open(path, encoding="utf-8-sig", newline="") as f:
+                raw = f.read()
+        except UnicodeDecodeError:
+            enc = "cp1252"
+            with open(path, encoding="cp1252", errors="replace", newline="") as f:
+                raw = f.read()
+        eol = "\r\n" if "\r\n" in raw else "\n"
+        text = raw.replace("\r\n", "\n")
         d = "file:///" + os.path.dirname(path).replace("\\", "/").rstrip("/") + "/"
-        return {"ok": True, "path": path, "text": text, "dir": d}
+        return {"ok": True, "path": path, "text": text, "dir": d, "eol": eol, "enc": enc}
 
     def initial_file(self):
         for p in self._initial:
@@ -193,12 +202,13 @@ class Api:
             return {"ok": False}
         return self.read_file(r[0])
 
-    def export_pdf(self, path, o, all_four):
+    def export_pdf(self, path, o, all_four, text=None):
         if not self._browser:
             return {"ok": False, "error": "Microsoft Edge (or Chrome) was not found."}
         try:
-            with open(path, encoding="utf-8-sig", errors="replace") as f:
-                text = f.read()
+            if text is None:
+                with open(path, encoding="utf-8-sig", errors="replace") as f:
+                    text = f.read()
             name = os.path.splitext(os.path.basename(path))[0]
             safe = re.sub(r'[<>:"/\|?*]', "_", name)
             stamp = datetime.date.today().strftime("%y_%m%d")
@@ -238,6 +248,34 @@ class Api:
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
+    def save_file(self, path, text, eol="\n", enc="utf-8"):
+        tmp = path + ".presswork.tmp"
+        try:
+            data = text.replace("\r\n", "\n").replace("\n", eol)
+            with open(tmp, "w", encoding=enc, newline="") as f:
+                f.write(data)
+            os.replace(tmp, path)
+            return {"ok": True}
+        except Exception as e:
+            try:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            except OSError:
+                pass
+            return {"ok": False, "error": f"Could not save: {e}"}
+
+    def set_dirty(self, value):
+        self._dirty = bool(value)
+
+    def _on_closing(self):
+        if not self._dirty:
+            return True
+        try:
+            return bool(self._window.create_confirmation_dialog(
+                APP, "You have unsaved changes. Close without saving?"))
+        except Exception:
+            return True
+
     def show_in_folder(self, path):
         subprocess.Popen(["explorer", "/select,", os.path.normpath(path)])
 
@@ -257,6 +295,7 @@ def main():
     api = Api(initial)
     api._window = webview.create_window(APP, resource("ui.html"), js_api=api, width=1280, height=860, text_select=True,
                                        min_size=(900, 600))
+    api._window.events.closing += api._on_closing
     webview.start()
 
 

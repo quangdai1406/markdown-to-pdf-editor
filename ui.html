@@ -12,7 +12,17 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
 .mast{display:flex;align-items:baseline;gap:12px;padding:14px 24px;border-bottom:1px solid var(--line)}
 .mast h1{font:600 1.5rem Palatino,"Palatino Linotype",Georgia,serif;margin:0}
 .mast span{font:italic .9rem Georgia,serif;color:var(--soft)}
-.work{flex:1;display:grid;grid-template-columns:320px 1fr;min-height:0}
+.work{flex:1;display:grid;grid-template-columns:300px minmax(260px,1fr) 1fr;min-height:0}
+.work:not(.split){grid-template-columns:300px 1fr}
+.ed{display:none;flex-direction:column;min-width:0;min-height:0;background:var(--surface);border-right:1px solid var(--line)}
+.split .ed{display:flex}
+.edhead{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--surface2);font-size:.78rem;user-select:none;-webkit-user-select:none}
+.edhead .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--soft)}
+.dirty{color:var(--danger);font-weight:600;display:none}
+.dirty.on{display:inline}
+.edhead button{padding:5px 12px;border:1px solid var(--line2);background:var(--surface);border-radius:3px;font-size:.78rem;font-weight:600}
+.edhead button:hover{border-color:var(--accent)}
+#src{flex:1;width:100%;border:0;resize:none;outline:none;padding:16px;background:var(--surface);color:var(--ink);font:13px/1.6 "JetBrains Mono",Consolas,monospace;tab-size:2;user-select:text;-webkit-user-select:text}
 .ctl{background:var(--surface2);border-right:1px solid var(--line);padding:18px 20px;display:flex;flex-direction:column;gap:18px;overflow:auto}
 .lbl{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin-bottom:8px}
 button{font:inherit;cursor:pointer}
@@ -64,12 +74,14 @@ input[type=number]{width:70px;padding:6px;border:1px solid var(--line2);border-r
 </style></head>
 <body><div class="app">
 <div class="mast"><h1>Presswork PDF</h1><span>Markdown, set for print</span></div>
-<div class="work">
+<div class="work split" id="work">
  <section class="ctl">
   <div><div class="lbl">Markdown file</div>
    <button class="btn" id="open">Open .md file…</button>
    <div class="fname" id="fname">No file open</div>
    <button class="btn" id="reload" style="margin-top:8px;display:none">Reload from disk</button></div>
+  <div><div class="lbl">View</div>
+   <div class="seg" id="view"><button data-v="read" aria-pressed="false">Read</button><button data-v="split" aria-pressed="true">Split (edit)</button></div></div>
   <div><div class="lbl">Paper size</div>
    <div class="seg" id="size"><button data-v="A4" aria-pressed="true">A4</button><button data-v="A3" aria-pressed="false">A3</button></div></div>
   <div><div class="lbl">Orientation</div>
@@ -91,6 +103,10 @@ input[type=number]{width:70px;padding:6px;border:1px solid var(--line2);border-r
    <div class="small">Double-click any .md file to open it here once this is set.</div>
   </div>
  </section>
+ <section class="ed" id="ed">
+  <div class="edhead"><span class="nm" id="edname">No file open</span><span class="dirty" id="dirty">● unsaved</span><button id="save" title="Save (Ctrl+S)">Save</button></div>
+  <textarea id="src" spellcheck="false" placeholder="Open a .md file, then edit it here."></textarea>
+ </section>
  <section class="prev" id="prev">
   <div class="readout" id="readout">A4 portrait</div>
   <div class="zbar"><button id="zout" title="Zoom out (Ctrl + scroll down)">−</button><button id="zfit" title="Fit to window (Ctrl+0)">Fit</button><button id="z100" title="100% (Ctrl+1)">100%</button><button id="zin" title="Zoom in (Ctrl + scroll up)">+</button></div>
@@ -100,7 +116,7 @@ input[type=number]{width:70px;padding:6px;border:1px solid var(--line2);border-r
 <script src="marked.umd.js"></script>
 <script>
 const DIM={A4:[210,297],A3:[297,420]};
-let st={size:'A4',orient:'Portrait',accent:'Ink blue',path:null,text:'',dir:''};
+let st={size:'A4',orient:'Portrait',accent:'Ink blue',path:null,text:'',dir:'',saved:'',eol:'\n',enc:'utf-8',dirty:false};
 const $=id=>document.getElementById(id);
 const api=()=>window.pywebview.api;
 
@@ -129,6 +145,8 @@ $('prev').addEventListener('wheel',e=>{
 },{passive:false});
 window.addEventListener('keydown',e=>{
   if(!e.ctrlKey)return;
+  if((e.key==='s'||e.key==='S')&&!e.shiftKey&&!e.altKey){e.preventDefault();save();return}
+  if(document.activeElement===$('src'))return;
   if(e.key==='+'||e.key==='='){e.preventDefault();zoomBy(1.1)}
   else if(e.key==='-'||e.key==='_'){e.preventDefault();zoomBy(1/1.1)}
   else if(e.key==='0'){e.preventDefault();setZoom(null)}
@@ -150,12 +168,38 @@ function render(){
 }
 function setStatus(msg,warn,html){const s=$('status');s.style.display=msg?'block':'none';s.className='status'+(warn?' warn':'');
   if(html)s.innerHTML=msg;else s.textContent=msg}
+function setDirty(){
+  const d=st.text!==st.saved; if(d===st.dirty)return; st.dirty=d;
+  $('dirty').classList.toggle('on',d);
+  try{api().set_dirty(d)}catch(e){}
+}
 function loadInfo(r){
   if(!r||!r.ok){if(r&&r.error)setStatus(r.error,true);return}
-  st.path=r.path;st.text=r.text;st.dir=r.dir;
-  $('fname').textContent=r.path;$('reload').style.display='block';
+  st.path=r.path;st.text=r.text;st.saved=r.text;st.dir=r.dir;st.eol=r.eol||'\n';st.enc=r.enc||'utf-8';
+  $('src').value=r.text;st.dirty=true;setDirty();
+  $('fname').textContent=r.path;$('edname').textContent=r.path;$('reload').style.display='block';
   setStatus('');render();
 }
+function okToLeave(){return !st.dirty||confirm('You have unsaved changes. Discard them?')}
+let _rt=null;
+$('src').addEventListener('input',()=>{
+  st.text=$('src').value;setDirty();
+  clearTimeout(_rt);_rt=setTimeout(render,250);
+});
+async function save(){
+  if(!st.path){setStatus('Open a Markdown file first.',true);return}
+  const text=$('src').value;
+  const r=await api().save_file(st.path,text,st.eol,st.enc);
+  if(!r.ok){setStatus(r.error||'Save failed',true);return}
+  st.saved=text;st.text=$('src').value;setDirty();setStatus('Saved.');
+}
+$('save').onclick=save;
+function setView(v){
+  $('work').classList.toggle('split',v==='split');
+  [...$('view').children].forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));
+  setTimeout(fit,30);
+}
+$('view').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setView(b.dataset.v)});
 function seg(id,key){$(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
   st[key]=b.dataset.v;[...$(id).children].forEach(x=>x.setAttribute('aria-pressed',x===b));applyPaper()})}
 seg('size','size');seg('orient','orient');
@@ -163,8 +207,8 @@ $('sw').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)re
   [...$('sw').children].forEach(x=>x.setAttribute('aria-pressed',x===b));st.accent=b.dataset.a;
   const r=document.documentElement.style;r.setProperty('--doc-accent',b.dataset.c);r.setProperty('--doc-code',b.dataset.b);r.setProperty('--doc-line',b.dataset.l)});
 $('margin').addEventListener('input',applyPaper);
-$('open').onclick=async()=>loadInfo(await api().pick_file());
-$('reload').onclick=async()=>loadInfo(await api().read_file(st.path));
+$('open').onclick=async()=>{if(!okToLeave())return;loadInfo(await api().pick_file())};
+$('reload').onclick=async()=>{if(!okToLeave())return;loadInfo(await api().read_file(st.path))};
 function opts(){return {size:st.size,orient:st.orient,accent:st.accent,margin:parseInt($('margin').value)||18}}
 function done(r){
   if(!r.ok){setStatus(r.error||'Export failed',true);return}
@@ -177,8 +221,8 @@ async function run(fn){
   try{done(await fn())}catch(e){setStatus(String(e),true)}
   $('export').disabled=$('exportall').disabled=false;
 }
-$('export').onclick=()=>run(()=>api().export_pdf(st.path,opts(),false));
-$('exportall').onclick=()=>run(()=>api().export_pdf(st.path,opts(),true));
+$('export').onclick=()=>run(()=>api().export_pdf(st.path,opts(),false,$('src').value));
+$('exportall').onclick=()=>run(()=>api().export_pdf(st.path,opts(),true,$('src').value));
 $('assoc').onclick=async()=>{const r=await api().associate();setStatus(r.msg,!r.ok)};
 window.addEventListener('resize',fit);
 $('zin').onclick=()=>zoomBy(1.1);$('zout').onclick=()=>zoomBy(1/1.1);$('zfit').onclick=()=>setZoom(null);$('z100').onclick=()=>setZoom(1);
