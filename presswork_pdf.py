@@ -1,8 +1,3 @@
-"""Presswork PDF - standalone Markdown -> PDF exporter (A3 / A4, portrait / landscape).
-
-Based on Presswork.html (same typography). Renders with marked.js and prints to PDF
-through Microsoft Edge (headless), which ships with Windows 10/11. No internet needed.
-"""
 import datetime
 import html
 import json
@@ -16,7 +11,7 @@ import webview
 
 APP = "Presswork PDF"
 PAGE_MM = {"A4": (210, 297), "A3": (297, 420)}
-ACCENTS = {  # name: (accent, code bg, line)
+ACCENTS = {
     "Ink blue": ("#23425e", "#f1efe6", "#ddd6c4"),
     "Umber": ("#5c4a2e", "#f2ede2", "#ddd3bd"),
     "Forest": ("#3f5b42", "#eef2ea", "#d5ddce"),
@@ -132,7 +127,6 @@ def _exe_command():
 
 
 def register_md():
-    """Per-user (HKCU) file association for .md / .markdown. No admin needed."""
     import ctypes
     import winreg
     cls = "Software\\Classes\\"
@@ -149,7 +143,6 @@ def register_md():
 
 
 def user_choice_blocks():
-    """True if Windows already has another app chosen for .md (it overrides ours)."""
     import winreg
     key = r"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.md\UserChoice"
     try:
