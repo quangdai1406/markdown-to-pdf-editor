@@ -11,7 +11,7 @@ from pathlib import Path, PurePath
 _ENCODING = re.compile(r"^[ \t\f]*#.*?coding[:=][ \t]*[-\w.]+")
 
 
-def _python_targets(src):
+def _python_info(src):
     lines = io.StringIO(src).readlines()
     cuts = {}
     for tok in tokenize.generate_tokens(io.StringIO(src).readline):
@@ -23,13 +23,22 @@ def _python_targets(src):
         if row <= 2 and _ENCODING.match(lines[row - 1]):
             continue
         cuts[row] = col
+    tree = ast.parse(src)
     docs = []
-    uses_doc = False
-    for node in ast.walk(ast.parse(src)):
-        if (isinstance(node, ast.Name) and node.id == "__doc__") or (
-            isinstance(node, ast.Attribute) and node.attr == "__doc__"
-        ):
-            uses_doc = True
+    doc_names = []
+    unsafe = False
+    used = set()
+    futures_end = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            used.add(node.id)
+            if node.id == "__doc__":
+                if isinstance(node.ctx, ast.Load):
+                    doc_names.append((node.lineno, node.col_offset))
+                else:
+                    unsafe = True
+        elif isinstance(node, ast.Attribute) and node.attr == "__doc__":
+            unsafe = True
         if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             first = node.body[0] if node.body else None
             if (
@@ -37,42 +46,92 @@ def _python_targets(src):
                 and isinstance(first.value, ast.Constant)
                 and isinstance(first.value.value, str)
             ):
-                docs.append((first.lineno, first.end_lineno))
-    return lines, cuts, docs, uses_doc
+                docs.append(
+                    {
+                        "start": first.lineno,
+                        "end": first.end_lineno,
+                        "col": first.col_offset,
+                        "end_col": first.end_col_offset,
+                        "sole": len(node.body) == 1,
+                        "module": isinstance(node, ast.Module),
+                    }
+                )
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+            futures_end = max(futures_end, node.end_lineno)
+    return lines, cuts, docs, doc_names, unsafe, used, futures_end
 
 
 def find_python(src):
-    _, cuts, docs, _ = _python_targets(src)
-    found = set(cuts) | {start for start, _ in docs}
-    return sorted(found)
+    _, cuts, docs, _, _, _, _ = _python_info(src)
+    return sorted(set(cuts) | {d["start"] for d in docs})
 
 
 def strip_python(src):
     try:
-        lines, cuts, docs, uses_doc = _python_targets(src)
+        lines, cuts, docs, doc_names, unsafe, used, futures_end = _python_info(src)
     except (SyntaxError, tokenize.TokenError) as exc:
         raise ValueError(f"cannot parse python: {exc}") from exc
-    if docs and uses_doc:
-        raise ValueError("code reads __doc__: move the text into a string constant first")
+    if docs and unsafe:
+        raise ValueError("code reads or writes __doc__ on an object: cannot move it safely")
+    module_doc = next((d for d in docs if d["module"]), None)
+    rename = bool(doc_names) and module_doc is not None
+    if rename and "DOC_TEXT" in used:
+        raise ValueError("DOC_TEXT already exists: cannot move the module docstring")
     dropped = set()
-    for start, end in docs:
-        dropped.update(range(start, end + 1))
+    replaced = {}
+    insert_after = {}
+    for d in docs:
+        first = lines[d["start"] - 1]
+        last = lines[d["end"] - 1]
+        tail = last.encode("utf-8")[d["end_col"]:].decode("utf-8")
+        if first[: d["col"]].strip() or tail.strip():
+            raise ValueError(f"docstring shares a line with code (line {d['start']}): rewrite it first")
+        span = range(d["start"], d["end"] + 1)
+        if d["module"] and rename:
+            text = "".join(lines[d["start"] - 1 : d["end"]])
+            if not text.endswith("\n"):
+                text += "\n"
+            if futures_end > d["end"]:
+                dropped.update(span)
+                insert_after[futures_end] = "DOC_TEXT = " + text
+            else:
+                replaced[d["start"]] = "DOC_TEXT = " + text
+                dropped.update(range(d["start"] + 1, d["end"] + 1))
+        elif d["sole"] and not d["module"]:
+            eol = last[len(last.rstrip("\r\n")):] or "\n"
+            replaced[d["start"]] = first[: d["col"]] + "pass" + eol
+            dropped.update(range(d["start"] + 1, d["end"] + 1))
+        else:
+            dropped.update(span)
+    renames = {}
+    if rename:
+        for row, col in doc_names:
+            renames.setdefault(row, []).append(col)
     out = []
     for number, line in enumerate(lines, start=1):
-        if number in dropped:
-            continue
-        if number in cuts:
-            body = line[: cuts[number]].rstrip()
-            if not body:
-                continue
-            eol = line[len(line.rstrip("\r\n")):]
-            line = body + eol
-        out.append(line)
+        if number in replaced:
+            out.append(replaced[number])
+        elif number not in dropped:
+            if number in cuts:
+                body = line[: cuts[number]].rstrip()
+                if not body:
+                    continue
+                eol = line[len(line.rstrip("\r\n")):]
+                line = body + eol
+            if number in renames:
+                raw = line.encode("utf-8")
+                for col in sorted(renames[number], reverse=True):
+                    raw = raw[:col] + b"DOC_TEXT" + raw[col + len(b"__doc__"):]
+                line = raw.decode("utf-8")
+            out.append(line)
+        if number in insert_after:
+            out.append(insert_after[number])
     result = "".join(out)
     try:
         ast.parse(result)
     except SyntaxError as exc:
-        raise ValueError(f"stripping left an empty block: {exc}") from exc
+        raise ValueError(f"stripping produced invalid python: {exc}") from exc
     return result
 
 
@@ -570,7 +629,8 @@ def staged_files(root):
 
 def staged_text(root, name):
     result = subprocess.run(["git", "show", f":{name}"], cwd=root, check=True, capture_output=True)
-    return result.stdout.decode("utf-8")
+    raw = result.stdout
+    return raw.decode("utf-16" if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8")
 
 
 def main(argv):
@@ -603,11 +663,14 @@ def main(argv):
             continue
         path = root / name
         try:
+            encoding = "utf-8"
             if staged:
                 text = staged_text(root, name)
             else:
-                with open(path, encoding="utf-8", newline="") as handle:
-                    text = handle.read()
+                raw = path.read_bytes()
+                if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+                    encoding = "utf-16"
+                text = raw.decode(encoding)
             if command == "check":
                 for line in find_text(name, text):
                     print(f"{name}:{line}")
@@ -615,8 +678,7 @@ def main(argv):
             else:
                 new = strip_text(name, text)
                 if new != text:
-                    with open(path, "w", encoding="utf-8", newline="") as handle:
-                        handle.write(new)
+                    path.write_bytes(new.encode(encoding))
         except (OSError, UnicodeDecodeError, ValueError, SyntaxError, tokenize.TokenError, subprocess.CalledProcessError) as exc:
             print(f"{name}: {exc}")
             errors += 1
